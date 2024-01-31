@@ -1,0 +1,136 @@
+<div class="wrap">
+    <h1><?php esc_html_e('Admin Select Products', 'your-text-domain'); ?></h1>
+
+    <?php
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Handle form submission
+        $client_name = sanitize_text_field($_POST['client_name']);
+        $client_email = sanitize_email($_POST['client_email']);
+        $selected_products = isset($_POST['selected_products']) ? $_POST['selected_products'] : array();
+		
+        // Validate the form data
+        $errors = array();
+        if (empty($client_name)) {
+            $errors[] = 'Client Name is required.';
+        }
+        if (empty($client_email) || !is_email($client_email)) {
+            $errors[] = 'Valid Client Email is required.';
+        }
+
+        if (empty($errors)) {
+            // Your existing save_quotation function code here
+
+            // Construct email content
+            $email_subject = 'Quotation Request from ' . $client_name;
+
+            $email_body = 'Client Name: ' . $client_name . "<br>";
+            $email_body .= 'Client Email: ' . $client_email . "<br>";
+            $email_body .= '<table style="width: 100%; border-collapse: collapse;">';
+			$email_body .= '<thead>
+			<th style="border: 1px solid #dddddd; padding: 8px;">Products</th>
+			<th style="border: 1px solid #dddddd; padding: 8px;">Price</th>
+			<th style="border: 1px solid #dddddd; padding: 8px;">Quantity</th>
+			<th style="border: 1px solid #dddddd; padding: 8px;">Image</th>
+			</thead>';
+				
+				$email_body .= '<tbody>';
+            // Loop through selected products and include details in the email
+            
+            $total_price = 0;
+            $total_quantity = 0;
+			foreach ($selected_products as $product_id) {
+                $product = wc_get_product($product_id);
+				$selected_products_quantity = isset($_POST['selected_products_quantity_'.$product_id.'']) ? $_POST['selected_products_quantity_'.$product_id.''] : 0;
+
+                // Get formatted price
+                $formatted_price = wc_price($product->get_price() * $selected_products_quantity);
+                $total_price += $product->get_price() * $selected_products_quantity;
+                $total_quantity += $selected_products_quantity;
+
+                // Include product details in email body
+                $email_body .= '<tr>';
+                $email_body .= '<td style="border: 1px solid #dddddd; padding: 8px;">' . esc_html($product->get_name()) . '</td>';
+                $email_body .= '<td style="border: 1px solid #dddddd; padding: 8px; text-align:center;">' . strip_tags(html_entity_decode($formatted_price)) . '</td>';
+                $email_body .= '<td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">' . $selected_products_quantity . '</td>';
+                $email_body .= '<td style="border: 1px solid #dddddd; padding: 8px; text-align:center;">';
+
+                // Display product image in email
+                $image_url = get_the_post_thumbnail_url($product_id, 'full');
+                if ($image_url) {
+                    $email_body .= '<img src="' . esc_url($image_url) . '" alt="Product Image" style="max-width: 100px; height: 100px;">';
+                }
+
+                $email_body .= '</td></tr>';
+				
+            }
+            $email_body .= '<tr><td style="border: 1px solid #dddddd; padding: 8px;"></td><td style="border: 1px solid #dddddd; padding: 8px; text-align:center;">'.wc_price($total_price).'</td><td style="border: 1px solid #dddddd; padding: 8px; text-align:center;">'.$total_quantity.'</td><td style="border: 1px solid #dddddd; padding: 8px;"></td></tr>';
+            $email_body .= '</tbody></table>';
+
+            // Add more content to the email body as needed
+
+            // Set headers to indicate that the email content is HTML
+            $headers = array('Content-Type: text/html; charset=UTF-8');
+
+            // Send email
+            wp_mail($client_email, $email_subject, $email_body, $headers);
+
+            // Display success message or additional content here
+        } else {
+            // Display errors
+            foreach ($errors as $error) {
+                echo '<p class="error">' . esc_html($error) . '</p>';
+            }
+        }
+    }
+
+    // Retrieve all products
+    $products = wc_get_products(array('limit' => -1));
+
+    if (empty($products)) {
+        echo '<p>No products found.</p>';
+    } else {
+        ?>
+
+        <form method="post" action="">
+            <label for="client_name"><?php esc_html_e('Client Name:', 'your-text-domain'); ?></label>
+            <input type="text" name="client_name" id="client_name" required>
+
+            <label for="client_email"><?php esc_html_e('Client Email:', 'your-text-domain'); ?></label>
+            <input type="email" name="client_email" id="client_email" required>
+
+            <label for="selected_products"><?php esc_html_e('Select Products:', 'http://localhost/testlocal'); ?></label>
+           <ul>
+			   
+			 <div style="max-height: 800px; overflow-y: auto;">
+                <?php
+                foreach ($products as $product) {
+                    // Display product name, image, and price with checkboxes
+                    echo '<li><div id="quotepro" style="display:flex;">';
+                    echo '<input type="checkbox" name="selected_products[]" value="' . esc_attr($product->get_id()) . '">';
+					$product_image = get_the_post_thumbnail_url($product->get_id(), 'thumbnail');
+                    if ($product_image) {
+                        echo '<br><img src="' . esc_url($product_image) . '" alt="' . esc_attr($product->get_name()) . '" style="max-width: 100px; height: auto;">';
+                    }
+					echo '<input type="number" name="selected_products_quantity_'.$product->get_id().'" value="1">';
+                    echo '<label style="margin-left: 5px; display: inline-block;">' . esc_html($product->get_name()) . ' - ' . wc_price($product->get_price()) .'</label>';
+                    
+                    echo '</div></li>';
+                }
+                ?>
+            </div></ul>
+
+            <!-- Add more form elements as needed -->
+
+            <?php
+            if (function_exists('submit_button')) {
+                submit_button('Submit Quotation');
+            } else {
+                echo '<p>Submit button function not available.</p>';
+            }
+            ?>
+        </form>
+
+        <?php
+    }
+    ?>
+</div>
